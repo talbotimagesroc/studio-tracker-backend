@@ -76,6 +76,15 @@ def seed_studios_get():
     con.commit()
 
     return "Studios added via GET"
+    @app.route("/studios.js")
+def studios_js():
+    rows = db().execute("SELECT id, name FROM studios").fetchall()
+
+    js = "window.STUDIOS = " + str([
+        {"id": r[0], "name": r[1]} for r in rows
+    ]).replace("'", '"') + ";"
+
+    return app.response_class(js, mimetype="application/javascript")
 # 🚫 NOTHING BELOW THIS LINE EXCEPT app.run()
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
