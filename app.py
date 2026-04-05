@@ -56,3 +56,14 @@ def students():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
+
+@app.route("/admin/seed_studios", methods=["POST"])
+def seed_studios():
+    studios = request.json.get("studios", [])
+    con = db()
+
+    for name in studios:
+        con.execute("INSERT INTO studios (name) VALUES (?)", (name,))
+
+    con.commit()
+    return "Studios added"
