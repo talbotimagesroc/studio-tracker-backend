@@ -59,7 +59,20 @@ def seed_studios():
         con.execute("INSERT INTO studios (name) VALUES (?)", (name,))
     con.commit()
     return "Studios added"
+@app.route("/admin/seed_studios_get")
+def seed_studios_get():
+    studios = [
+        "Main Studio",
+        "Community Center",
+        "Private Lessons"
+    ]
 
+    con = db()
+    for name in studios:
+        con.execute("INSERT INTO studios (name) VALUES (?)", (name,))
+    con.commit()
+
+    return "Studios added via GET"
 # 🚫 NOTHING BELOW THIS LINE EXCEPT app.run()
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
