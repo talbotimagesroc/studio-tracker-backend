@@ -1,9 +1,7 @@
 from flask import Flask, jsonify, request
 import sqlite3
-import os
 
 app = Flask(__name__)
-
 DB_FILE = "data.db"
 
 def db():
@@ -43,27 +41,25 @@ def students():
     studio_id = request.args.get("studio_id")
     if not studio_id:
         return jsonify([])
-
     rows = db().execute(
         "SELECT id, name, classes_remaining FROM students WHERE studio_id = ?",
         (studio_id,)
     ).fetchall()
-
     return jsonify([
         {"id": r[0], "name": r[1], "classes_remaining": r[2]}
         for r in rows
     ])
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
-
+# ✅ TEMP SEED ENDPOINT — MUST BE ABOVE app.run()
 @app.route("/admin/seed_studios", methods=["POST"])
 def seed_studios():
     studios = request.json.get("studios", [])
     con = db()
-
     for name in studios:
         con.execute("INSERT INTO studios (name) VALUES (?)", (name,))
-
     con.commit()
     return "Studios added"
+
+# 🚫 NOTHING BELOW THIS LINE EXCEPT app.run()
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=10000)
