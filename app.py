@@ -30,6 +30,21 @@ def init_db():
 
 init_db()
 
+def seed_studios_if_empty():
+    con = db()
+    count = con.execute("SELECT COUNT(*) FROM studios").fetchone()[0]
+    if count == 0:
+        con.executemany(
+            "INSERT INTO studios (name) VALUES (?)",
+            [
+                ("East",),
+                ("West",),
+            ]
+        )
+        con.commit()
+
+seed_studios_if_empty()
+
 @app.route("/")
 def home():
     return "Backend is running"
