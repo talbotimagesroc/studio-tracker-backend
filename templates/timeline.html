@@ -1,0 +1,72 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Timeline - {{ student.name }}</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Arial; margin: 24px; }
+    a { color:#0b57d0; text-decoration:none; }
+    ul { list-style:none; padding-left:0; }
+    li { margin: 10px 0; display:flex; gap:12px; align-items:center; }
+    .date { min-width: 120px; }
+    .pill { padding:2px 10px; border-radius:999px; font-size:0.9rem; }
+    .purchase { background:#e8f0fe; }
+    .attended { background:#e6f4ea; }
+    .charged { background:#feefe3; }
+    .delta { font-weight:800; min-width: 60px; text-align:right; }
+    form { display:inline; margin:0; }
+    .danger { background:#b00020; color:white; border:0; border-radius:8px; padding:6px 10px; cursor:pointer; }
+    .danger:hover { opacity:0.9; }
+    .backbtn { padding: 10px 12px; border-radius: 8px; border: 0; background: #111; color: #fff; cursor: pointer; }
+  </style>
+</head>
+<body>
+
+  <h2>{{ student.name }} ({{ student.studio }}) — Timeline</h2>
+
+  {% if events|length == 0 %}
+    <p>No records yet.</p>
+  {% else %}
+    <ul>
+      {% for e in events %}
+        <li>
+          <span class="date">{{ e.date }}</span>
+
+          {% if e.kind == "purchase" %}
+            <span class="pill purchase">purchase</span>
+          {% else %}
+            {% if "Charged" in e.label %}
+              <span class="pill charged">charged</span>
+            {% else %}
+              <span class="pill attended">attended</span>
+            {% endif %}
+          {% endif %}
+
+          <span class="delta">
+            {% if e.classes_delta > 0 %}+{{ e.classes_delta }}{% else %}{{ e.classes_delta }}{% endif %}
+          </span>
+
+          <span>{{ e.label }}</span>
+
+          {% if e.kind == "attendance" %}
+            <form method="post" action="{{ url_for('delete_attendance', attendance_id=e.id) }}">
+              <input type="hidden" name="next" value="{{ url_for('timeline', student_id=student.id) }}">
+              <button class="danger" onclick="return confirm('Delete this attendance record?');">Delete</button>
+            </form>
+          {% else %}
+            <form method="post" action="{{ url_for('delete_purchase', purchase_id=e.id) }}">
+              <input type="hidden" name="next" value="{{ url_for('timeline', student_id=student.id) }}">
+              <button class="danger" onclick="return confirm('Delete this purchase record?');">Delete</button>
+            </form>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+
+  <form action="{{ url_for('index') }}" method="get">
+    <button class="backbtn" type="submit">← Back to main page</button>
+  </form>
+
+</body>
+</html>

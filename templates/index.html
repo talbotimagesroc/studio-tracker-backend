@@ -1,0 +1,300 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Class Tracker</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Arial; margin: 24px; }
+    h1,h2,h3 { margin: 0.6rem 0; }
+    .row { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
+    .card { border: 1px solid #ddd; border-radius: 10px; padding: 16px; min-width: 320px; flex: 1; }
+    label { display:block; margin-top: 10px; font-weight: 600; }
+    input, select, textarea { width: 100%; padding: 8px; margin-top: 6px; box-sizing: border-box; }
+    textarea { min-height: 70px; resize: vertical; }
+    button { margin-top: 12px; padding: 10px 12px; border:0; border-radius: 8px; background:#111; color:#fff; cursor:pointer; }
+    table { border-collapse: collapse; width: 100%; margin-top: 12px; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align:left; vertical-align: top; }
+    .neg { color: #b00020; font-weight: 800; }
+    .overdrawn { color: #b00020; font-weight: 800; display:block; margin-top: 4px; }
+    .muted { color:#666; font-size: 0.95rem; }
+    a { color:#0b57d0; text-decoration: none; }
+    .danger { padding: 6px 10px; border: 0; border-radius: 8px; background: #b00020; color: white; cursor: pointer; margin: 0; }
+    .danger:hover { opacity: 0.9; }
+    form.inline { display:inline; margin:0; }
+    .exports a { display:inline-block; margin-right: 14px; }
+  </style>
+</head>
+<body>
+
+  <h1>Instructor Page</h1>
+  <p class="muted">Purchases add classes. Attendance subtracts one class. Charged counts as used.</p>
+
+
+<div style="margin: 16px 0; padding: 16px; border: 1px solid #ddd; border-radius: 10px; background: #fafafa;">
+  <h2>Pricing Cheat Sheet</h2>
+
+  <table style="border-collapse: collapse; width: 100%; margin-top: 8px;">
+    <tr>
+      <th style="border:1px solid #ddd; padding:8px;">Studio</th>
+      <th style="border:1px solid #ddd; padding:8px;">Category</th>
+      <th style="border:1px solid #ddd; padding:8px;"># Classes</th>
+      <th style="border:1px solid #ddd; padding:8px;">Discount</th>
+      <th style="border:1px solid #ddd; padding:8px;">$</th>
+    </tr>
+
+    <!-- EAST -->
+    <tr>
+      <td rowspan="3" style="border:1px solid #ddd; padding:8px; font-weight:700;">EAST</td>
+      <td style="border:1px solid #ddd; padding:8px;">Kids</td>
+      <td style="border:1px solid #ddd; padding:8px;">5 / 10</td>
+      <td style="border:1px solid #ddd; padding:8px;">10% sibling</td>
+      <td style="border:1px solid #ddd; padding:8px;">$100 / $200</td>
+    </tr>
+    <tr>
+      <td style="border:1px solid #ddd; padding:8px;">HS</td>
+      <td style="border:1px solid #ddd; padding:8px;">Single</td>
+      <td style="border:1px solid #ddd; padding:8px;">10% sibling</td>
+      <td style="border:1px solid #ddd; padding:8px;">$25 each</td>
+    </tr>
+    <tr>
+      <td style="border:1px solid #ddd; padding:8px;">Adults</td>
+      <td style="border:1px solid #ddd; padding:8px;">5 / 10</td>
+      <td style="border:1px solid #ddd; padding:8px;">—</td>
+      <td style="border:1px solid #ddd; padding:8px;">$125 / $250</td>
+    </tr>
+
+    <!-- WEST -->
+    <tr>
+      <td rowspan="3" style="border:1px solid #ddd; padding:8px; font-weight:700;">WEST</td>
+      <td style="border:1px solid #ddd; padding:8px;">Kids</td>
+      <td style="border:1px solid #ddd; padding:8px;">5 / 10</td>
+      <td style="border:1px solid #ddd; padding:8px;">10% sibling</td>
+      <td style="border:1px solid #ddd; padding:8px;">$75 / $150</td>
+    </tr>
+    <tr>
+      <td style="border:1px solid #ddd; padding:8px;">HS</td>
+      <td style="border:1px solid #ddd; padding:8px;">Single</td>
+      <td style="border:1px solid #ddd; padding:8px;">10% sibling</td>
+      <td style="border:1px solid #ddd; padding:8px;">$20 each</td>
+    </tr>
+    <tr>
+      <td style="border:1px solid #ddd; padding:8px;">Adults</td>
+      <td style="border:1px solid #ddd; padding:8px;">5 / 10</td>
+      <td style="border:1px solid #ddd; padding:8px;">$10 off 10 for spouse</td>
+      <td style="border:1px solid #ddd; padding:8px;">$100 / $180</td>
+    </tr>
+  </table>
+</div>
+  <div class="row">
+    <div class="card">
+      <h2>Add Student</h2>
+      <form method="post">
+        <input type="hidden" name="type" value="add_student">
+
+        <label>Name</label>
+        <input name="name" required>
+
+        <label>Studio</label>
+        <select name="studio">
+          <option>East</option>
+          <option>West</option>
+        </select>
+
+        <label>Phone</label>
+        <input name="phone">
+
+        <label>Email</label>
+        <input name="email">
+
+        <label>Parent(s)</label>
+        <input name="parents">
+
+        <label>Allergies / Accommodations</label>
+        <textarea name="accommodations"></textarea>
+
+        <button type="submit">Save Student</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>Record Purchase</h2>
+      <form method="post">
+        <input type="hidden" name="type" value="purchase">
+
+        <label>Student</label>
+        <select name="student_id" required>
+          {% for s in students %}
+          <option value="{{ s.id }}">{{ s.name }} ({{ s.studio }})</option>
+          {% endfor %}
+        </select>
+
+        <label>Date</label>
+        <input type="date" name="date" value="{{ today }}" required>
+
+        <label>Classes Purchased</label>
+        <input type="number" name="classes" min="1" required>
+
+        <label>Cost ($)</label>
+        <input type="number" step="0.01" min="0" name="cost" required>
+
+        <label>Purchase Method</label>
+        <select name="payment_method" required>
+          <option>Cash</option>
+          <option>Check</option>
+          <option>Venmo</option>
+          <option>CC</option>
+          <option>Gift Cert</option>
+        </select>
+
+        <label>Note</label>
+        <textarea name="note"></textarea>
+
+        <button type="submit">Save Purchase</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>Record Attendance</h2>
+      <form method="post">
+        <input type="hidden" name="type" value="attendance">
+
+        <label>Student</label>
+        <select name="student_id" required>
+          {% for s in students %}
+          <option value="{{ s.id }}">{{ s.name }}</option>
+          {% endfor %}
+        </select>
+
+        <label>Date</label>
+        <input type="date" name="date" value="{{ today }}" required>
+
+        <label>Status</label>
+        <select name="status" required>
+          <option value="attended">Attended</option>
+          <option value="charged">Charged / Not Attended</option>
+        </select>
+
+        <button type="submit">Save Attendance</button>
+      </form>
+    </div>
+  </div>
+
+  <hr>
+
+  <h2>Exports (CSV)</h2>
+  <div class="exports">
+    <a href="{{ url_for('export_current_roster_csv') }}">Current Roster</a>
+    <a href="{{ url_for('export_purchases_csv') }}">Purchases (Revenue)</a>
+    <a href="{{ url_for('export_attendance_csv') }}">Attendance</a>
+    <a href="{{ url_for('export_student_balances_csv') }}">Student Balances</a>
+    <a href="{{ url_for('export_full_timeline_csv') }}">Full Timeline</a>
+  </div>
+
+  <hr>
+
+
+  <h2>Recent Attendance</h2>
+<p class="muted">
+  Showing latest 20 entries —
+  <a href="{{ url_for('all_attendance') }}">View full attendance history</a>
+</p>
+
+<table>
+<tr><th>Date</th><th>Student</th><th>Status</th><th>Undo</th></tr>
+{% for a in recent_attendance %}
+<tr>
+  <td>{{ a.date }}</td>
+  <td>{{ a.student_name }}</td>
+  <td>{{ a.status }}</td>
+  <td>
+    <form class="inline" method="post" action="{{ url_for('delete_attendance', attendance_id=a.id) }}">
+      <input type="hidden" name="next" value="{{ url_for('index') }}">
+      <button class="danger">Delete</button>
+    </form>
+  </td>
+</tr>
+{% endfor %}
+</table>
+
+  <hr>
+
+  <h2>Recent Purchases</h2>
+<p class="muted">
+  Showing latest 10 entries —
+  <a href="{{ url_for('all_purchases') }}">View full purchase history</a>
+</p>
+
+<table>
+<tr>
+  <th>Date</th><th>Student</th><th>Classes</th>
+  <th>Cost</th><th>Method</th><th>Note</th><th>Undo</th>
+</tr>
+{% for p in recent_purchases %}
+<tr>
+  <td>{{ p.date }}</td>
+  <td>{{ p.student_name }}</td>
+  <td>{{ p.classes_purchased }}</td>
+  <td>${{ "%.2f"|format(p.cost) }}</td>
+  <td>{{ p.payment_method }}</td>
+  <td>{{ p.note }}</td>
+  <td>
+    <form class="inline" method="post" action="{{ url_for('delete_purchase', purchase_id=p.id) }}">
+      <input type="hidden" name="next" value="{{ url_for('index') }}">
+      <button class="danger">Delete</button>
+    </form>
+  </td>
+</tr>
+{% endfor %}
+</table>
+  
+  <h2>Student Summary</h2>
+  <table>
+    <tr>
+      <th>Name</th>
+      <th>Studio</th>
+      <th>Purchased</th>
+      <th>Used</th>
+      <th>Remaining</th>
+      <th>Total Spent</th>
+      <th>Timeline</th>
+    </tr>
+
+    {% for r in report %}
+    <tr>
+      <td>
+        <a href="{{ url_for('edit_student', student_id=r.id) }}">{{ r.name }}</a>
+      </td>
+      <td>{{ r.studio }}</td>
+      <td>{{ r.purchased }}</td>
+      <td>{{ r.used }}</td>
+      <td class="{{ 'neg' if r.remaining < 0 else '' }}">
+        {{ r.remaining }}
+        {% if r.remaining < 0 %}
+          <span class="overdrawn">Overdrawn — purchase required</span>
+        {% endif %}
+      </td>
+      <td>${{ "%.2f"|format(r.total_spent) }}</td>
+      <td>
+        <a href="{{ url_for('timeline', student_id=r.id) }}">View history</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+
+  <hr>
+
+
+  {% if overdrawn_students and overdrawn_students|length > 0 %}
+  <script>
+    (function () {
+      const names = {{ overdrawn_students|tojson }};
+      const key = "overdrawn:" + names.join("|");
+      if (localStorage.getItem(key)) return;
+      localStorage.setItem(key, "1");
+      alert("Overdrawn — purchase required:\n\n" + names.join("\n"));
+    })();
+  </script>
+  {% endif %}
+
+</body>
+</html>

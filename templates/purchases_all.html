@@ -1,0 +1,31 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>All Purchases</title>
+</head>
+<body>
+
+<h2>All Purchase History</h2>
+<p><a href="{{ url_for('index') }}">← Back to main page</a></p>
+
+<table>
+<tr>
+  <th>Date</th><th>Student</th><th>Studio</th>
+  <th>Classes</th><th>Cost</th><th>Method</th><th>Note</th>
+</tr>
+{% for r in rows %}
+<tr>
+  <td>{{ r.date }}</td>
+  <td>{{ r.student }}</td>
+  <td>{{ r.studio }}</td>
+  <td>{{ r.classes_purchased }}</td>
+  <td>${{ "%.2f"|format(r.cost) }}</td>
+  <td>{{ r.payment_method }}</td>
+  <td>{{ r.note }}</td>
+</tr>
+{% endfor %}
+</table>
+
+</body>
+</html>

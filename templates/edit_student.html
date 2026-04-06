@@ -1,0 +1,58 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Edit Student</title>
+  <style>
+    body { font-family: system-ui, Arial; margin: 24px; }
+    label { display:block; margin-top: 12px; font-weight:600; }
+    input, select, textarea { padding:8px; width:100%; box-sizing:border-box; }
+    textarea { min-height: 70px; }
+    button { margin-top:12px; padding:10px; border-radius:8px; border:0; cursor:pointer; }
+    .danger { background:#b00020; color:white; }
+    .primary { background:#111; color:white; }
+    a { color:#0b57d0; text-decoration:none; }
+  </style>
+</head>
+<body>
+
+<h2>Edit Student</h2>
+
+<form method="post">
+  <input type="hidden" name="action" value="update">
+
+  <label>Name</label>
+  <input name="name" value="{{ student.name }}" required>
+
+  <label>Studio</label>
+  <select name="studio">
+    <option {{ 'selected' if student.studio == 'East' }}>East</option>
+    <option {{ 'selected' if student.studio == 'West' }}>West</option>
+  </select>
+
+  <label>Phone</label>
+  <input name="phone" value="{{ student.phone or '' }}">
+
+  <label>Email</label>
+  <input name="email" value="{{ student.email or '' }}">
+
+  <label>Parent(s)</label>
+  <input name="parents" value="{{ student.parents or '' }}">
+
+  <label>Allergies / Accommodations</label>
+  <textarea name="accommodations">{{ student.accommodations or '' }}</textarea>
+
+  <button class="primary">Save Changes</button>
+</form>
+
+<hr>
+
+<form method="post" onsubmit="return confirm('This will delete the student and ALL history. Continue?');">
+  <input type="hidden" name="action" value="delete">
+  <button class="danger">Delete Student Completely</button>
+</form>
+
+<p><a href="{{ url_for('index') }}">← Back to main page</a></p>
+
+</body>
+</html>
