@@ -206,7 +206,7 @@
 <tr><th>Date</th><th>Student</th><th>Status</th><th>Undo</th></tr>
 {% for a in recent_attendance %}
 <tr>
-  <td>{{ row.date | replace("-", "/") }}</td>
+  <td>{{ a.date | replace("-", "/") }}</td>
   <td>{{ a.student_name }}</td>
   <td>{{ a.status }}</td>
   <td>
@@ -234,7 +234,7 @@
 </tr>
 {% for p in recent_purchases %}
 <tr>
-  <td>{{ row.date | replace("-", "/") }}</td>
+  <td>{{ p.date | replace("-", "/") }}</td>
   <td>{{ p.student_name }}</td>
   <td>{{ p.classes_purchased }}</td>
   <td>${{ "%.2f"|format(p.cost) }}</td>
