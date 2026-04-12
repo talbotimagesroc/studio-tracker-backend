@@ -565,6 +565,128 @@ def all_purchases():
     return render_template("purchases_all.html", rows=rows)
 
 
+@app.route("/admin/import_students", methods=["GET", "POST"])
+def import_students():
+    import csv
+
+    if request.method == "POST":
+        file = request.files["file"]
+        reader = csv.DictReader(file.stream.read().decode("utf-8").splitlines())
+        con = db()
+
+        for row in reader:
+            con.execute("""
+                INSERT OR IGNORE INTO students
+                (name, studio, phone, email, parents, accommodations)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (
+                row["name"].strip(),
+                row["studio"].strip(),
+                row.get("phone","").strip(),
+                row.get("email","").strip(),
+                row.get("parents","").strip(),
+                row.get("accommodations","").strip(),
+            ))
+
+        con.commit()
+        return "Students imported"
+
+    return """
+    <h2>Import Students</h2>
+    <form method="post" enctype="multipart/form-data">
+        <input type="file" name="file" required>
+        <button type="submit">Upload</button>
+    </form>
+    """
+    
+    
+    @app.route("/admin/import_purchases", methods=["GET", "POST"])
+def import_purchases():
+    import csv
+
+    if request.method == "POST":
+        file = request.files["file"]
+        reader = csv.DictReader(file.stream.read().decode("utf-8").splitlines())
+        con = db()
+
+        for row in reader:
+            student = con.execute(
+                "SELECT id FROM students WHERE name=?",
+                (row["student_name"].strip(),)
+            ).fetchone()
+
+            if not student:
+                continue
+
+            con.execute("""
+                INSERT INTO purchases
+                (student_id, date, classes_purchased, cost, payment_method, note)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (
+                student["id"],
+                row["date"],
+                int(row["classes"]),
+                float(row["cost"]),
+                row.get("payment_method",""),
+                row.get("note",""),
+            ))
+
+        con.commit()
+        return "Purchases imported"
+
+    return """
+    <h2>Import Purchases</h2>
+    <form method="post" enctype="multipart/form-data">
+        <input type="file" name="file" required>
+        <button type="submit">Upload</button>
+    </form>
+    """
+    
+    
+    @app.route("/admin/import_attendance", methods=["GET", "POST"])
+def import_attendance():
+    import csv
+
+    if request.method == "POST":
+        file = request.files["file"]
+        reader = csv.DictReader(file.stream.read().decode("utf-8").splitlines())
+        con = db()
+
+        for row in reader:
+            student = con.execute(
+                "SELECT id FROM students WHERE name=?",
+                (row["student_name"].strip(),)
+            ).fetchone()
+
+            if not student:
+                continue
+
+            con.execute("""
+                INSERT INTO attendance
+                (student_id, date, status)
+                VALUES (?, ?, ?)
+            """, (
+                student["id"],
+                row["date"],
+                row["status"].strip().lower(),
+            ))
+
+        con.commit()
+        return "Attendance imported"
+
+    return """
+    <h2>Import Attendance</h2>
+    <form method="post" enctype="multipart/form-data">
+        <input type="file" name="file" required>
+        <button type="submit">Upload</button>
+    </form>
+    """
+    
+    
+    
+
+
+
 if __name__ == "__main__":
     # For local dev only; Render uses gunicorn
     app.run(host="0.0.0.0", port=5000, debug=False)
