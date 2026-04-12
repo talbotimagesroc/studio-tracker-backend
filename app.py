@@ -1,22 +1,92 @@
 from flask import Flask, render_template, request, redirect, url_for, Response
 import sqlite3
-from datetime import date
+from datetime import date, datetime
 import csv
 import io
+import re
 
 app = Flask(__name__)
 DB = "classes.db"
 
+# --- Helpers ---------------------------------------------------------
 
 def db():
     conn = sqlite3.connect(DB)
     conn.row_factory = sqlite3.Row
     return conn
 
+def normalize_date_str(s: str) -> str:
+    """
+    Normalize a date string to YYYY-MM-DD.
+    Accepts:
+      - YYYY-MM-DD (returns as-is)
+      - M/D/YYYY or MM/DD/YYYY (returns YYYY-MM-DD)
+    If it can't parse, returns original.
+    """
+    if not s:
+        return s
+    s = s.strip()
+    # Already ISO
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", s):
+        return s
+    # Common US format from Excel imports
+    # Allow 1-2 digit month/day
+    if re.fullmatch(r"\d{1,2}/\d{1,2}/\d{4}", s):
+        try:
+            dt = datetime.strptime(s, "%m/%d/%Y")
+            return dt.strftime("%Y-%m-%d")
+        except ValueError:
+            return s
+    return s
+
+def ensure_meta_table(con):
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS meta (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        )
+    """)
+
+def get_meta(con, key):
+    row = con.execute("SELECT value FROM meta WHERE key=?", (key,)).fetchone()
+    return row["value"] if row else None
+
+def set_meta(con, key, value):
+    con.execute("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)", (key, value))
+
+def migrate_dates_once(con):
+    """
+    One-time migration: convert any M/D/YYYY stored in purchases.date or attendance.date to ISO YYYY-MM-DD.
+    This fixes sorting + consistent display in templates.
+    """
+    ensure_meta_table(con)
+    if get_meta(con, "date_migrated_v1") == "1":
+        return
+
+    # purchases
+    rows = con.execute("SELECT id, date FROM purchases").fetchall()
+    for r in rows:
+        old = r["date"]
+        new = normalize_date_str(old)
+        if new != old:
+            con.execute("UPDATE purchases SET date=? WHERE id=?", (new, r["id"]))
+
+    # attendance
+    rows = con.execute("SELECT id, date FROM attendance").fetchall()
+    for r in rows:
+        old = r["date"]
+        new = normalize_date_str(old)
+        if new != old:
+            con.execute("UPDATE attendance SET date=? WHERE id=?", (new, r["id"]))
+
+    set_meta(con, "date_migrated_v1", "1")
+
+
+# --- Schema ----------------------------------------------------------
 
 def init_db():
     with db() as con:
-        # Base schema (includes all current fields)
+        # Core tables
         con.executescript("""
         CREATE TABLE IF NOT EXISTS students (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -32,7 +102,7 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             student_id INTEGER NOT NULL,
             date TEXT NOT NULL,
-            classes_purchased INTEGER NOT NULL CHECK (classes_purchased > 0),
+            classes_purchased INTEGER NOT NULL,
             cost REAL NOT NULL CHECK (cost >= 0),
             payment_method TEXT,
             note TEXT,
@@ -48,7 +118,7 @@ def init_db():
         );
         """)
 
-        # Safe migrations for older DBs (ignore if already exists)
+        # Safe migrations for older DBs
         for col in ("phone", "email", "parents", "accommodations"):
             try:
                 con.execute(f"ALTER TABLE students ADD COLUMN {col} TEXT")
@@ -61,6 +131,13 @@ def init_db():
             except sqlite3.OperationalError:
                 pass
 
+        # One-time date normalization migration
+        migrate_dates_once(con)
+
+        con.commit()
+
+
+# --- Routes ----------------------------------------------------------
 
 @app.route("/", methods=["GET", "POST"])
 def index():
@@ -91,7 +168,7 @@ def index():
                 VALUES (?, ?, ?, ?, ?, ?)
             """, (
                 int(request.form["student_id"]),
-                request.form["date"],
+                normalize_date_str(request.form["date"]),
                 int(request.form["classes"]),
                 float(request.form["cost"]),
                 request.form.get("payment_method", "").strip(),
@@ -99,20 +176,27 @@ def index():
             ))
 
         elif t == "attendance":
+            status = (request.form["status"] or "").strip().lower()
+            if status.startswith("attended"):
+                status = "attended"
+            elif status.startswith("charged"):
+                status = "charged"
             con.execute(
                 "INSERT INTO attendance (student_id, date, status) VALUES (?, ?, ?)",
-                (int(request.form["student_id"]), request.form["date"], request.form["status"])
+                (int(request.form["student_id"]), normalize_date_str(request.form["date"]), status)
             )
 
         con.commit()
         return redirect(url_for("index"))
 
+    # ✅ This list controls your dropdowns; SQL order is authoritative.
     students = con.execute("""
-    SELECT *
-    FROM students
-    ORDER BY name COLLATE NOCASE
-""").fetchall()
+        SELECT *
+        FROM students
+        ORDER BY name COLLATE NOCASE
+    """).fetchall()
 
+    # Student summary
     report = con.execute("""
         SELECT
             s.id,
@@ -143,11 +227,12 @@ def index():
         ORDER BY total_spent DESC, s.name
     """).fetchall()
 
+    # ✅ Recent lists sorted by DATE first (fixes your “not chronological” complaint)
     recent_attendance = con.execute("""
         SELECT a.id, a.date, a.status, s.name AS student_name
         FROM attendance a
         JOIN students s ON s.id = a.student_id
-        ORDER BY a.id DESC
+        ORDER BY a.date DESC, a.id DESC
         LIMIT 20
     """).fetchall()
 
@@ -159,7 +244,7 @@ def index():
             s.name AS student_name
         FROM purchases p
         JOIN students s ON s.id = p.student_id
-        ORDER BY p.id DESC
+        ORDER BY p.date DESC, p.id DESC
         LIMIT 10
     """).fetchall()
 
@@ -188,12 +273,14 @@ def timeline(student_id):
                COALESCE(note,'') AS note
         FROM purchases
         WHERE student_id=?
+        ORDER BY date ASC, id ASC
     """, (student_id,)).fetchall()
 
     attendance = con.execute("""
         SELECT id, date, status
         FROM attendance
         WHERE student_id=?
+        ORDER BY date ASC, id ASC
     """, (student_id,)).fetchall()
 
     events = []
@@ -223,6 +310,7 @@ def timeline(student_id):
             "classes_delta": -1,
         })
 
+    # already ordered per-query, but keep stable sort
     kind_order = {"purchase": 0, "attendance": 1}
     events.sort(key=lambda e: (e["date"], kind_order.get(e["kind"], 9), e["id"]))
 
@@ -439,44 +527,44 @@ def export_full_timeline_csv():
     resp.headers["Content-Disposition"] = "attachment; filename=full_timeline.csv"
     return resp
 
+
 @app.route("/attendance/all")
 def all_attendance():
+    init_db()
     con = db()
-    
-rows = con.execute("""
-    SELECT
-        a.date,
-        s.name AS student,
-        s.studio,
-        a.status
-    FROM attendance a
-    JOIN students s ON s.id = a.student_id
-    ORDER BY a.date ASC, a.id ASC
-""").fetchall()
-
+    rows = con.execute("""
+        SELECT
+            a.date,
+            s.name AS student,
+            s.studio,
+            a.status
+        FROM attendance a
+        JOIN students s ON s.id = a.student_id
+        ORDER BY a.date ASC, a.id ASC
+    """).fetchall()
     return render_template("attendance_all.html", rows=rows)
 
 
 @app.route("/purchases/all")
 def all_purchases():
+    init_db()
     con = db()
-    
-rows = con.execute("""
-    SELECT
-        p.date,
-        s.name AS student,
-        s.studio,
-        p.classes_purchased,
-        p.cost,
-        COALESCE(p.payment_method,'') AS payment_method,
-        COALESCE(p.note,'') AS note
-    FROM purchases p
-    JOIN students s ON s.id = p.student_id
-    ORDER BY p.date ASC, p.id ASC
-""").fetchall()
-
+    rows = con.execute("""
+        SELECT
+            p.date,
+            s.name AS student,
+            s.studio,
+            p.classes_purchased,
+            p.cost,
+            COALESCE(p.payment_method,'') AS payment_method,
+            COALESCE(p.note,'') AS note
+        FROM purchases p
+        JOIN students s ON s.id = p.student_id
+        ORDER BY p.date ASC, p.id ASC
+    """).fetchall()
     return render_template("purchases_all.html", rows=rows)
 
 
 if __name__ == "__main__":
-    app.run()
+    # For local dev only; Render uses gunicorn
+    app.run(host="0.0.0.0", port=5000, debug=False)
