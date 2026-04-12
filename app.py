@@ -596,3 +596,164 @@ def export_purchases_csv():
             COALESCE(p.note,'') AS note
         FROM purchases p
         JOIN students s ON s.id = p.student_id
+""").fetchall()
+
+    out = io.StringIO()
+    w = csv.writer(out)
+    w.writerow(["Date","Student","Studio","Classes Purchased","Amount","Payment Method","Note"])
+    for r in rows:
+        w.writerow([r["date"], r["student"], r["studio"], r["classes_purchased"], f"{r['cost']:.2f}", r["payment_method"], r["note"]])
+
+    resp = Response(out.getvalue(), mimetype="text/csv")
+    resp.headers["Content-Disposition"] = "attachment; filename=purchases.csv"
+    return resp
+
+
+@app.route("/export/attendance.csv")
+def export_attendance_csv():
+    con = db()
+    rows = con.execute("""
+        SELECT
+            a.date,
+            s.name AS student,
+            s.studio,
+            a.status
+        FROM attendance a
+        JOIN students s ON s.id = a.student_id
+        ORDER BY a.date, a.id
+    """).fetchall()
+
+    out = io.StringIO()
+    w = csv.writer(out)
+    w.writerow(["Date","Student","Studio","Status"])
+    for r in rows:
+        w.writerow([r["date"], r["student"], r["studio"], r["status"]])
+
+    resp = Response(out.getvalue(), mimetype="text/csv")
+    resp.headers["Content-Disposition"] = "attachment; filename=attendance.csv"
+    return resp
+
+
+@app.route("/export/student_balances.csv")
+def export_student_balances_csv():
+    con = db()
+    rows = con.execute("""
+        SELECT
+            s.name,
+            s.studio,
+            COALESCE(SUM(p.classes_purchased), 0) AS purchased,
+            (SELECT COUNT(*) FROM attendance a WHERE a.student_id = s.id) AS used,
+            COALESCE(SUM(p.classes_purchased), 0) -
+            (SELECT COUNT(*) FROM attendance a WHERE a.student_id = s.id) AS remaining
+        FROM students s
+        LEFT JOIN purchases p ON p.student_id = s.id
+        GROUP BY s.id
+        ORDER BY s.studio, s.name
+    """).fetchall()
+
+    out = io.StringIO()
+    w = csv.writer(out)
+    w.writerow(["Student","Studio","Purchased","Used","Remaining"])
+    for r in rows:
+        w.writerow([r["name"], r["studio"], r["purchased"], r["used"], r["remaining"]])
+
+    resp = Response(out.getvalue(), mimetype="text/csv")
+    resp.headers["Content-Disposition"] = "attachment; filename=student_balances.csv"
+    return resp
+
+
+@app.route("/export/full_timeline.csv")
+def export_full_timeline_csv():
+    con = db()
+    rows = con.execute("""
+        SELECT
+            p.date AS event_date,
+            s.name AS student,
+            s.studio,
+            'Purchase' AS event_type,
+            p.classes_purchased AS classes_purchased,
+            p.cost AS cost,
+            COALESCE(p.payment_method,'') AS payment_method,
+            COALESCE(p.note,'') AS note,
+            '' AS attendance_status
+        FROM purchases p
+        JOIN students s ON s.id = p.student_id
+
+        UNION ALL
+
+        SELECT
+            a.date AS event_date,
+            s.name AS student,
+            s.studio,
+            'Attendance' AS event_type,
+            '' AS classes_purchased,
+            '' AS cost,
+            '' AS payment_method,
+            '' AS note,
+            a.status AS attendance_status
+        FROM attendance a
+        JOIN students s ON s.id = a.student_id
+
+        ORDER BY event_date
+    """).fetchall()
+
+    out = io.StringIO()
+    w = csv.writer(out)
+    w.writerow(["Date","Student","Studio","Event Type","Classes Purchased","Cost","Payment Method","Note","Attendance Status"])
+    for r in rows:
+        w.writerow([
+            r["event_date"],
+            r["student"],
+            r["studio"],
+            r["event_type"],
+            r["classes_purchased"],
+            r["cost"],
+            r["payment_method"],
+            r["note"],
+            r["attendance_status"],
+        ])
+
+    resp = Response(out.getvalue(), mimetype="text/csv")
+    resp.headers["Content-Disposition"] = "attachment; filename=full_timeline.csv"
+    return resp
+
+
+@app.route("/attendance/all")
+def all_attendance():
+    init_db()
+    con = db()
+    rows = con.execute("""
+        SELECT
+            a.date,
+            s.name AS student,
+            s.studio,
+            a.status
+        FROM attendance a
+        JOIN students s ON s.id = a.student_id
+        ORDER BY a.date ASC, a.id ASC
+    """).fetchall()
+    return render_template("attendance_all.html", rows=rows)
+
+
+@app.route("/purchases/all")
+def all_purchases():
+    init_db()
+    con = db()
+    rows = con.execute("""
+        SELECT
+            p.date,
+            s.name AS student,
+            s.studio,
+            p.classes_purchased,
+            p.cost,
+            COALESCE(p.payment_method,'') AS payment_method,
+            COALESCE(p.note,'') AS note
+        FROM purchases p
+        JOIN students s ON s.id = p.student_id
+        ORDER BY p.date ASC, p.id ASC
+    """).fetchall()
+    return render_template("purchases_all.html", rows=rows)
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=False)
