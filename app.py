@@ -565,15 +565,17 @@ def all_purchases():
     return render_template("purchases_all.html", rows=rows)
 
 
+# =========================
+# TEMP: CSV IMPORT ROUTES (REMOVE AFTER RESEED)
+# =========================
+
 @app.route("/admin/import_students", methods=["GET", "POST"])
 def import_students():
     import csv
-
     if request.method == "POST":
         file = request.files["file"]
         reader = csv.DictReader(file.stream.read().decode("utf-8").splitlines())
         con = db()
-
         for row in reader:
             con.execute("""
                 INSERT OR IGNORE INTO students
@@ -582,84 +584,79 @@ def import_students():
             """, (
                 row["name"].strip(),
                 row["studio"].strip(),
-                row.get("phone","").strip(),
-                row.get("email","").strip(),
-                row.get("parents","").strip(),
-                row.get("accommodations","").strip(),
+                row.get("phone", "").strip(),
+                row.get("email", "").strip(),
+                row.get("parents", "").strip(),
+                row.get("accommodations", "").strip(),
             ))
-
         con.commit()
         return "Students imported"
-
     return """
     <h2>Import Students</h2>
     <form method="post" enctype="multipart/form-data">
-        <input type="file" name="file" required>
-        <button type="submit">Upload</button>
+      <input type="file" name="file" required>
+      <button type="submit">Upload</button>
     </form>
     """
-    
-    
-    @app.route("/admin/import_purchases", methods=["GET", "POST"])
+
+
+@app.route("/admin/import_purchases", methods=["GET", "POST"])
 def import_purchases():
     import csv
-
     if request.method == "POST":
         file = request.files["file"]
         reader = csv.DictReader(file.stream.read().decode("utf-8").splitlines())
         con = db()
-
         for row in reader:
             student = con.execute(
                 "SELECT id FROM students WHERE name=?",
                 (row["student_name"].strip(),)
             ).fetchone()
-
             if not student:
                 continue
-
             con.execute("""
                 INSERT INTO purchases
                 (student_id, date, classes_purchased, cost, payment_method, note)
                 VALUES (?, ?, ?, ?, ?, ?)
             """, (
                 student["id"],
-                row["date"],
+                row["date"].strip(),
                 int(row["classes"]),
                 float(row["cost"]),
-                row.get("payment_method",""),
-                row.get("note",""),
+                row.get("payment_method", "").strip(),
+                row.get("note", "").strip(),
             ))
-
         con.commit()
         return "Purchases imported"
-
     return """
     <h2>Import Purchases</h2>
     <form method="post" enctype="multipart/form-data">
-        <input type="file" name="file" required>
-        <button type="submit">Upload</button>
+      <input type="file" name="file" required>
+      <button type="submit">Upload</button>
     </form>
     """
-    
-    
-    @app.route("/admin/import_attendance", methods=["GET", "POST"])
+
+
+@app.route("/admin/import_attendance", methods=["GET", "POST"])
 def import_attendance():
     import csv
-
     if request.method == "POST":
         file = request.files["file"]
         reader = csv.DictReader(file.stream.read().decode("utf-8").splitlines())
         con = db()
-
         for row in reader:
             student = con.execute(
                 "SELECT id FROM students WHERE name=?",
                 (row["student_name"].strip(),)
             ).fetchone()
-
             if not student:
                 continue
+
+            status = row["status"].strip().lower()
+            if status.startswith("attended"):
+                status = "attended"
+            elif status.startswith("charged"):
+                status = "charged"
 
             con.execute("""
                 INSERT INTO attendance
@@ -667,24 +664,18 @@ def import_attendance():
                 VALUES (?, ?, ?)
             """, (
                 student["id"],
-                row["date"],
-                row["status"].strip().lower(),
+                row["date"].strip(),
+                status
             ))
-
         con.commit()
         return "Attendance imported"
-
     return """
     <h2>Import Attendance</h2>
     <form method="post" enctype="multipart/form-data">
-        <input type="file" name="file" required>
-        <button type="submit">Upload</button>
+      <input type="file" name="file" required>
+      <button type="submit">Upload</button>
     </form>
     """
-    
-    
-    
-
 
 
 if __name__ == "__main__":
