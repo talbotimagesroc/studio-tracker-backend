@@ -122,11 +122,14 @@
         <input type="hidden" name="type" value="purchase">
 
         <label>Student</label>
-        <select name="student_id" required>
-          {% for s in students %}
-          <option value="{{ s.id }}">{{ s.name }} ({{ s.studio }})</option>
-          {% endfor %}
-        </select>
+        
+<select name="student_id" required>
+  <option value="">-- Select Student --</option>
+  {% for s in students %}
+    <option value="{{ s.id }}">{{ s.name }}</option>
+  {% endfor %}
+</select>
+
 
         <label>Date</label>
         <input type="date" name="date" value="{{ today }}" required>
@@ -203,7 +206,7 @@
 <tr><th>Date</th><th>Student</th><th>Status</th><th>Undo</th></tr>
 {% for a in recent_attendance %}
 <tr>
-  <td>{{ a.date }}</td>
+  <td>{{ row.date | replace("-", "/") }}</td>
   <td>{{ a.student_name }}</td>
   <td>{{ a.status }}</td>
   <td>
@@ -231,7 +234,7 @@
 </tr>
 {% for p in recent_purchases %}
 <tr>
-  <td>{{ p.date }}</td>
+  <td>{{ row.date | replace("-", "/") }}</td>
   <td>{{ p.student_name }}</td>
   <td>{{ p.classes_purchased }}</td>
   <td>${{ "%.2f"|format(p.cost) }}</td>
