@@ -1,3 +1,4 @@
+import os
 from flask import Flask, render_template, request, redirect, url_for, Response
 import sqlite3
 from datetime import date, datetime
@@ -6,13 +7,21 @@ import io
 import re
 
 app = Flask(__name__)
+
+# ✅ Persist DB on Render disk when available
 DB = os.environ.get("DB_PATH", "/var/data/classes.db")
 
-import os
-
-print("🚨 DB PATH AT RUNTIME =", DB)
-print("🚨 FILE EXISTS =", os.path.exists(DB))
-print("🚨 DIRECTORY CONTENTS:", os.listdir(os.path.dirname(DB)))
+# ✅ Safe debug (won't crash deploy)
+try:
+    print("🚨 DB PATH AT RUNTIME =", DB)
+    print("🚨 FILE EXISTS =", os.path.exists(DB))
+    d = os.path.dirname(DB) or "."
+    print("🚨 DB DIR =", d)
+    print("🚨 DIRECTORY EXISTS =", os.path.isdir(d))
+    if os.path.isdir(d):
+        print("🚨 DIRECTORY CONTENTS:", os.listdir(d)[:50])  # cap output
+except Exception as e:
+    print("🚨 DB DEBUG ERROR:", repr(e))
 
 # --- Helpers ---------------------------------------------------------
 
