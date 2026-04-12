@@ -6,7 +6,13 @@ import io
 import re
 
 app = Flask(__name__)
-DB = "classes.db"
+DB = os.environ.get("DB_PATH", "/var/data/classes.db")
+
+import os
+
+print("🚨 DB PATH AT RUNTIME =", DB)
+print("🚨 FILE EXISTS =", os.path.exists(DB))
+print("🚨 DIRECTORY CONTENTS:", os.listdir(os.path.dirname(DB)))
 
 # --- Helpers ---------------------------------------------------------
 
