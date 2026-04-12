@@ -195,6 +195,46 @@
 
   <hr>
 
+<hr>
+
+<h2>Imports (CSV)</h2>
+
+<div class="row">
+  <div class="card">
+    <h3>Import Students</h3>
+    <form method="post" action="{{ url_for('import_students_csv') }}" enctype="multipart/form-data">
+      <input type="file" name="file" accept=".csv" required>
+      <button type="submit">Upload Students CSV</button>
+    </form>
+    <p class="muted">
+      Required columns: <b>name</b>, <b>studio</b> (East/West)<br>
+      Optional: phone, email, parents, accommodations
+    </p>
+  </div>
+
+  <div class="card">
+    <h3>Import Purchases</h3>
+    <form method="post" action="{{ url_for('import_purchases_csv') }}" enctype="multipart/form-data">
+      <input type="file" name="file" accept=".csv" required>
+      <button type="submit">Upload Purchases CSV</button>
+    </form>
+    <p class="muted">
+      Columns: student, date, classes (or classes_purchased), cost (or amount)<br>
+      Optional: payment_method, note
+    </p>
+  </div>
+
+  <div class="card">
+    <h3>Import Attendance</h3>
+    <form method="post" action="{{ url_for('import_attendance_csv') }}" enctype="multipart/form-data">
+      <input type="file" name="file" accept=".csv" required>
+      <button type="submit">Upload Attendance CSV</button>
+    </form>
+    <p class="muted">
+      Columns: student, date, status (attended / charged)
+    </p>
+  </div>
+</div>
 
   <h2>Recent Attendance</h2>
 <p class="muted">

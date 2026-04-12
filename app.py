@@ -11,23 +11,51 @@ app = Flask(__name__)
 # ✅ Persist DB on Render disk when available
 DB = os.environ.get("DB_PATH", "/var/data/classes.db")
 
-# ✅ Safe debug (won't crash deploy)
+# (Optional safety) Ensure directory exists if using absolute path
 try:
-    print("🚨 DB PATH AT RUNTIME =", DB)
-    print("🚨 FILE EXISTS =", os.path.exists(DB))
-    d = os.path.dirname(DB) or "."
-    print("🚨 DB DIR =", d)
-    print("🚨 DIRECTORY EXISTS =", os.path.isdir(d))
-    if os.path.isdir(d):
-        print("🚨 DIRECTORY CONTENTS:", os.listdir(d)[:50])  # cap output
-except Exception as e:
-    print("🚨 DB DEBUG ERROR:", repr(e))
+    db_dir = os.path.dirname(DB)
+    if db_dir and DB.startswith("/") and not os.path.isdir(db_dir):
+        os.makedirs(db_dir, exist_ok=True)
+except Exception:
+    pass
+
 
 # --- Helpers ---------------------------------------------------------
 
+def _norm_header(h: str) -> str:
+    """Normalize CSV header names like 'Student Name' -> 'student_name'."""
+    return re.sub(r"[^a-z0-9]+", "_", (h or "").strip().lower()).strip("_")
+
+def _get(row: dict, *keys, default=""):
+    """Return the first non-empty value found for any of the provided keys."""
+    for k in keys:
+        if k in row and row[k] not in (None, ""):
+            return row[k]
+    return default
+
+def _to_int(val, default=None):
+    try:
+        return int(str(val).strip())
+    except Exception:
+        return default
+
+def _to_float(val, default=None):
+    try:
+        s = str(val).strip().replace("$", "").replace(",", "")
+        return float(s)
+    except Exception:
+        return default
+
 def db():
-    conn = sqlite3.connect(DB)
+    # SQLite on a persistent disk
+    conn = sqlite3.connect(DB, timeout=30, check_same_thread=False)
     conn.row_factory = sqlite3.Row
+    # Reduce locking issues under gunicorn threads:
+    try:
+        conn.execute("PRAGMA journal_mode=WAL;")
+        conn.execute("PRAGMA synchronous=NORMAL;")
+    except Exception:
+        pass
     return conn
 
 def normalize_date_str(s: str) -> str:
@@ -242,7 +270,7 @@ def index():
         ORDER BY total_spent DESC, s.name
     """).fetchall()
 
-    # ✅ Recent lists sorted by DATE first (fixes your “not chronological” complaint)
+    # ✅ Recent lists sorted by DATE first
     recent_attendance = con.execute("""
         SELECT a.id, a.date, a.status, s.name AS student_name
         FROM attendance a
@@ -325,7 +353,6 @@ def timeline(student_id):
             "classes_delta": -1,
         })
 
-    # already ordered per-query, but keep stable sort
     kind_order = {"purchase": 0, "attendance": 1}
     events.sort(key=lambda e: (e["date"], kind_order.get(e["kind"], 9), e["id"]))
 
@@ -387,6 +414,145 @@ def delete_purchase(purchase_id):
 
 
 # =========================
+# ✅ CSV IMPORTS (LOADERS)
+# =========================
+
+@app.route("/import/students", methods=["POST"])
+def import_students_csv():
+    init_db()
+    f = request.files.get("file")
+    if not f or f.filename == "":
+        return redirect(url_for("index"))
+
+    content = f.read().decode("utf-8-sig", errors="replace")
+    reader = csv.DictReader(io.StringIO(content))
+
+    rows = []
+    for r in reader:
+        rows.append({_norm_header(k): (v.strip() if isinstance(v, str) else v) for k, v in r.items()})
+
+    with db() as con:
+        for r in rows:
+            name = _get(r, "name", "student_name", "student").strip()
+            studio = _get(r, "studio").strip().title()
+
+            if not name or studio not in ("East", "West"):
+                continue
+
+            con.execute("""
+                INSERT OR IGNORE INTO students
+                (name, studio, phone, email, parents, accommodations)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (
+                name,
+                studio,
+                _get(r, "phone"),
+                _get(r, "email"),
+                _get(r, "parents", "parent", "parent_s"),
+                _get(r, "accommodations", "allergies", "notes"),
+            ))
+
+        con.commit()
+
+    return redirect(url_for("index"))
+
+
+@app.route("/import/purchases", methods=["POST"])
+def import_purchases_csv():
+    init_db()
+    f = request.files.get("file")
+    if not f or f.filename == "":
+        return redirect(url_for("index"))
+
+    content = f.read().decode("utf-8-sig", errors="replace")
+    reader = csv.DictReader(io.StringIO(content))
+
+    rows = []
+    for r in reader:
+        rows.append({_norm_header(k): (v.strip() if isinstance(v, str) else v) for k, v in r.items()})
+
+    with db() as con:
+        for r in rows:
+            student_name = _get(r, "student", "name", "student_name").strip()
+            date_str = _get(r, "date", "purchase_date", "event_date").strip()
+            classes = _to_int(_get(r, "classes_purchased", "classes", "class_count"), default=None)
+            cost = _to_float(_get(r, "cost", "amount"), default=None)
+
+            if not student_name or not date_str or classes is None or cost is None:
+                continue
+
+            stu = con.execute("SELECT id FROM students WHERE name=?", (student_name,)).fetchone()
+            if not stu:
+                continue
+
+            con.execute("""
+                INSERT INTO purchases
+                (student_id, date, classes_purchased, cost, payment_method, note)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (
+                int(stu["id"]),
+                normalize_date_str(date_str),
+                int(classes),
+                float(cost),
+                _get(r, "payment_method", "payment"),
+                _get(r, "note", "notes"),
+            ))
+
+        con.commit()
+
+    return redirect(url_for("index"))
+
+
+@app.route("/import/attendance", methods=["POST"])
+def import_attendance_csv():
+    init_db()
+    f = request.files.get("file")
+    if not f or f.filename == "":
+        return redirect(url_for("index"))
+
+    content = f.read().decode("utf-8-sig", errors="replace")
+    reader = csv.DictReader(io.StringIO(content))
+
+    rows = []
+    for r in reader:
+        rows.append({_norm_header(k): (v.strip() if isinstance(v, str) else v) for k, v in r.items()})
+
+    def _norm_status(s: str) -> str:
+        s = (s or "").strip().lower()
+        if s.startswith("attend"):
+            return "attended"
+        if s.startswith("charg"):
+            return "charged"
+        if s in ("a", "present", "p"):
+            return "attended"
+        if s in ("c", "no_show", "noshow", "absent", "charged/not attended"):
+            return "charged"
+        return ""
+
+    with db() as con:
+        for r in rows:
+            student_name = _get(r, "student", "name", "student_name").strip()
+            date_str = _get(r, "date", "event_date").strip()
+            status = _norm_status(_get(r, "status", "attendance_status"))
+
+            if not student_name or not date_str or not status:
+                continue
+
+            stu = con.execute("SELECT id FROM students WHERE name=?", (student_name,)).fetchone()
+            if not stu:
+                continue
+
+            con.execute(
+                "INSERT INTO attendance (student_id, date, status) VALUES (?, ?, ?)",
+                (int(stu["id"]), normalize_date_str(date_str), status)
+            )
+
+        con.commit()
+
+    return redirect(url_for("index"))
+
+
+# =========================
 # ✅ CSV EXPORTS
 # =========================
 
@@ -430,157 +596,3 @@ def export_purchases_csv():
             COALESCE(p.note,'') AS note
         FROM purchases p
         JOIN students s ON s.id = p.student_id
-        ORDER BY p.date, p.id
-    """).fetchall()
-
-    out = io.StringIO()
-    w = csv.writer(out)
-    w.writerow(["Date","Student","Studio","Classes Purchased","Amount","Payment Method","Note"])
-    for r in rows:
-        w.writerow([r["date"], r["student"], r["studio"], r["classes_purchased"], f"{r['cost']:.2f}", r["payment_method"], r["note"]])
-
-    resp = Response(out.getvalue(), mimetype="text/csv")
-    resp.headers["Content-Disposition"] = "attachment; filename=purchases.csv"
-    return resp
-
-
-@app.route("/export/attendance.csv")
-def export_attendance_csv():
-    con = db()
-    rows = con.execute("""
-        SELECT
-            a.date,
-            s.name AS student,
-            s.studio,
-            a.status
-        FROM attendance a
-        JOIN students s ON s.id = a.student_id
-        ORDER BY a.date, a.id
-    """).fetchall()
-
-    out = io.StringIO()
-    w = csv.writer(out)
-    w.writerow(["Date","Student","Studio","Status"])
-    for r in rows:
-        w.writerow([r["date"], r["student"], r["studio"], r["status"]])
-
-    resp = Response(out.getvalue(), mimetype="text/csv")
-    resp.headers["Content-Disposition"] = "attachment; filename=attendance.csv"
-    return resp
-
-
-@app.route("/export/student_balances.csv")
-def export_student_balances_csv():
-    con = db()
-    rows = con.execute("""
-        SELECT
-            s.name,
-            s.studio,
-            COALESCE(SUM(p.classes_purchased), 0) AS purchased,
-            (SELECT COUNT(*) FROM attendance a WHERE a.student_id = s.id) AS used,
-            COALESCE(SUM(p.classes_purchased), 0) -
-            (SELECT COUNT(*) FROM attendance a WHERE a.student_id = s.id) AS remaining
-        FROM students s
-        LEFT JOIN purchases p ON p.student_id = s.id
-        GROUP BY s.id
-        ORDER BY s.studio, s.name
-    """).fetchall()
-
-    out = io.StringIO()
-    w = csv.writer(out)
-    w.writerow(["Student","Studio","Purchased","Used","Remaining"])
-    for r in rows:
-        w.writerow([r["name"], r["studio"], r["purchased"], r["used"], r["remaining"]])
-
-    resp = Response(out.getvalue(), mimetype="text/csv")
-    resp.headers["Content-Disposition"] = "attachment; filename=student_balances.csv"
-    return resp
-
-
-@app.route("/export/full_timeline.csv")
-def export_full_timeline_csv():
-    con = db()
-    rows = con.execute("""
-        SELECT
-            p.date AS event_date,
-            s.name AS student,
-            s.studio,
-            'Purchase' AS event_type,
-            p.classes_purchased AS classes_purchased,
-            p.cost AS cost,
-            COALESCE(p.payment_method,'') AS payment_method,
-            COALESCE(p.note,'') AS note,
-            '' AS attendance_status
-        FROM purchases p
-        JOIN students s ON s.id = p.student_id
-
-        UNION ALL
-
-        SELECT
-            a.date AS event_date,
-            s.name AS student,
-            s.studio,
-            'Attendance' AS event_type,
-            '' AS classes_purchased,
-            '' AS cost,
-            '' AS payment_method,
-            '' AS note,
-            a.status AS attendance_status
-        FROM attendance a
-        JOIN students s ON s.id = a.student_id
-
-        ORDER BY event_date
-    """).fetchall()
-
-    out = io.StringIO()
-    w = csv.writer(out)
-    w.writerow(["Date","Student","Studio","Event Type","Classes Purchased","Cost","Payment Method","Note","Attendance Status"])
-    for r in rows:
-        w.writerow([r["event_date"], r["student"], r["studio"], r["event_type"], r["classes_purchased"], r["cost"], r["payment_method"], r["note"], r["attendance_status"]])
-
-    resp = Response(out.getvalue(), mimetype="text/csv")
-    resp.headers["Content-Disposition"] = "attachment; filename=full_timeline.csv"
-    return resp
-
-
-@app.route("/attendance/all")
-def all_attendance():
-    init_db()
-    con = db()
-    rows = con.execute("""
-        SELECT
-            a.date,
-            s.name AS student,
-            s.studio,
-            a.status
-        FROM attendance a
-        JOIN students s ON s.id = a.student_id
-        ORDER BY a.date ASC, a.id ASC
-    """).fetchall()
-    return render_template("attendance_all.html", rows=rows)
-
-
-@app.route("/purchases/all")
-def all_purchases():
-    init_db()
-    con = db()
-    rows = con.execute("""
-        SELECT
-            p.date,
-            s.name AS student,
-            s.studio,
-            p.classes_purchased,
-            p.cost,
-            COALESCE(p.payment_method,'') AS payment_method,
-            COALESCE(p.note,'') AS note
-        FROM purchases p
-        JOIN students s ON s.id = p.student_id
-        ORDER BY p.date ASC, p.id ASC
-    """).fetchall()
-    return render_template("purchases_all.html", rows=rows)
-
-
-
-if __name__ == "__main__":
-    # For local dev only; Render uses gunicorn
-    app.run(host="0.0.0.0", port=5000, debug=False)
