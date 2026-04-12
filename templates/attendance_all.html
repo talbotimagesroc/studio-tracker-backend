@@ -13,7 +13,7 @@
 <tr><th>Date</th><th>Student</th><th>Studio</th><th>Status</th></tr>
 {% for r in rows %}
 <tr>
-  <td>{{ r.date }}</td>
+  <td>{{ row.date | replace("-", "/") }}</td>
   <td>{{ r.student }}</td>
   <td>{{ r.studio }}</td>
   <td>{{ r.status }}</td>

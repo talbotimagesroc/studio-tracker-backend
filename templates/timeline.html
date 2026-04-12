@@ -30,7 +30,7 @@
     <ul>
       {% for e in events %}
         <li>
-          <span class="date">{{ e.date }}</span>
+          <span class="date">{{ row.date | replace("-", "/") }}</span>
 
           {% if e.kind == "purchase" %}
             <span class="pill purchase">purchase</span>

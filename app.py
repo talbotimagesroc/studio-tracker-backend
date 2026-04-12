@@ -107,7 +107,11 @@ def index():
         con.commit()
         return redirect(url_for("index"))
 
-    students = con.execute("SELECT * FROM students ORDER BY studio, name").fetchall()
+    students = con.execute("""
+    SELECT *
+    FROM students
+    ORDER BY name COLLATE NOCASE
+""").fetchall()
 
     report = con.execute("""
         SELECT
@@ -438,37 +442,39 @@ def export_full_timeline_csv():
 @app.route("/attendance/all")
 def all_attendance():
     con = db()
-    rows = con.execute("""
-        SELECT
-            a.id,
-            a.date,
-            s.name AS student,
-            s.studio,
-            a.status
-        FROM attendance a
-        JOIN students s ON s.id = a.student_id
-        ORDER BY a.date DESC, a.id DESC
-    """).fetchall()
+    
+rows = con.execute("""
+    SELECT
+        a.date,
+        s.name AS student,
+        s.studio,
+        a.status
+    FROM attendance a
+    JOIN students s ON s.id = a.student_id
+    ORDER BY a.date ASC, a.id ASC
+""").fetchall()
+
     return render_template("attendance_all.html", rows=rows)
 
 
 @app.route("/purchases/all")
 def all_purchases():
     con = db()
-    rows = con.execute("""
-        SELECT
-            p.id,
-            p.date,
-            s.name AS student,
-            s.studio,
-            p.classes_purchased,
-            p.cost,
-            COALESCE(p.payment_method,'') AS payment_method,
-            COALESCE(p.note,'') AS note
-        FROM purchases p
-        JOIN students s ON s.id = p.student_id
-        ORDER BY p.date DESC, p.id DESC
-    """).fetchall()
+    
+rows = con.execute("""
+    SELECT
+        p.date,
+        s.name AS student,
+        s.studio,
+        p.classes_purchased,
+        p.cost,
+        COALESCE(p.payment_method,'') AS payment_method,
+        COALESCE(p.note,'') AS note
+    FROM purchases p
+    JOIN students s ON s.id = p.student_id
+    ORDER BY p.date ASC, p.id ASC
+""").fetchall()
+
     return render_template("purchases_all.html", rows=rows)
 
 
