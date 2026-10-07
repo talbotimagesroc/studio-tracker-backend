@@ -789,7 +789,7 @@ def api_hubspot_sync():
         ORDER BY s.name
     """).fetchall()
 
-return jsonify([
+    return jsonify([
     {
         "name": r["name"],
         "studio": r["studio"],
