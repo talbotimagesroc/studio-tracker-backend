@@ -757,7 +757,25 @@ def all_purchases():
 
 @app.route("/api/hubspot-sync")
 def api_hubspot_sync():
-    return jsonify({"status": "ok"})
+    con = db()
+
+    rows = con.execute("""
+        SELECT
+            s.name,
+            s.studio,
+            COALESCE(s.email,'') AS email
+        FROM students s
+        ORDER BY s.name
+    """).fetchall()
+
+    return jsonify([
+        {
+            "name": r["name"],
+            "studio": r["studio"],
+            "email": r["email"]
+        }
+        for r in rows
+    ])
     
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=False)
