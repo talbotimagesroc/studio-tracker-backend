@@ -779,7 +779,12 @@ def api_hubspot_sync():
                 SELECT COUNT(*)
                 FROM attendance a
                 WHERE a.student_id = s.id
-            ) AS remaining
+            ) AS remaining,
+(
+    SELECT MAX(a.date)
+    FROM attendance a
+    WHERE a.student_id = s.id
+) AS last_attendance_date
 
         FROM students s
         LEFT JOIN purchases p
@@ -798,6 +803,7 @@ def api_hubspot_sync():
         "purchased": r["purchased"],
         "used": r["used"],
         "remaining": r["remaining"],
+        "last_attendance_date": r["last_attendance_date"],
         "balance_status":
             "Critical Balance" if r["remaining"] <= 0
             else "Low Balance" if r["remaining"] <= 2
