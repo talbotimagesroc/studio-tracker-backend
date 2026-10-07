@@ -789,18 +789,22 @@ def api_hubspot_sync():
         ORDER BY s.name
     """).fetchall()
 
-    return jsonify([
-        {
-            "name": r["name"],
-            "studio": r["studio"],
-            "email": r["email"],
-            "parents": r["parents"],
-            "purchased": r["purchased"],
-            "used": r["used"],
-            "remaining": r["remaining"]
-        }
-        for r in rows
-    ])
+return jsonify([
+    {
+        "name": r["name"],
+        "studio": r["studio"],
+        "email": r["email"],
+        "parents": r["parents"],
+        "purchased": r["purchased"],
+        "used": r["used"],
+        "remaining": r["remaining"],
+        "balance_status":
+            "Critical Balance" if r["remaining"] <= 0
+            else "Low Balance" if r["remaining"] <= 2
+            else "Positive Balance"
+    }
+    for r in rows
+])
     
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=False)
