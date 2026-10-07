@@ -1,5 +1,6 @@
 import os
-from flask import Flask, render_template, request, redirect, url_for, Response
+from flask import Flask, render_template, request, redirect, url_for, Response, jsonify, abort
+import hmac
 import sqlite3
 from datetime import date, datetime
 import csv
@@ -754,6 +755,9 @@ def all_purchases():
     """).fetchall()
     return render_template("purchases_all.html", rows=rows)
 
-
+@app.route("/api/hubspot-sync")
+def api_hubspot_sync():
+    return jsonify({"status": "ok"})
+    
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=False)
