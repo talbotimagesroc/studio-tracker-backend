@@ -763,8 +763,29 @@ def api_hubspot_sync():
         SELECT
             s.name,
             s.studio,
-            COALESCE(s.email,'') AS email
+            COALESCE(s.email,'') AS email,
+            COALESCE(s.parents,'') AS parents,
+
+            COALESCE(SUM(p.classes_purchased), 0) AS purchased,
+
+            (
+                SELECT COUNT(*)
+                FROM attendance *
+                WHERE a.student_id = s.id
+            ) AS used,
+
+            COALESCE(SUM(p.classes_purchased), 0) -
+            (
+                SELECT COUNT(*)
+                FROM attendance a
+                WHERE a.student_id = s.id
+            ) AS remaining
+
         FROM students s
+        LEFT JOIN purchases p
+            ON p.student_id = s.id
+
+        GROUP BY s.id
         ORDER BY s.name
     """).fetchall()
 
@@ -772,7 +793,11 @@ def api_hubspot_sync():
         {
             "name": r["name"],
             "studio": r["studio"],
-            "email": r["email"]
+            "email": r["email"],
+            "parents": r["parents"],
+            "purchased": r["purchased"],
+            "used": r["used"],
+            "remaining": r["remaining"]
         }
         for r in rows
     ])
