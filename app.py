@@ -768,11 +768,11 @@ def api_hubspot_sync():
 
             COALESCE(SUM(p.classes_purchased), 0) AS purchased,
 
-            (
-                SELECT COUNT(*)
-                FROM attendance *
-                WHERE a.student_id = s.id
-            ) AS used,
+           (
+    SELECT COUNT(*)
+    FROM attendance a
+    WHERE a.student_id = s.id
+) AS used,
 
             COALESCE(SUM(p.classes_purchased), 0) -
             (
